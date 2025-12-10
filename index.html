@@ -1,0 +1,177 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>WhatsApp‑Style Chat</title>
+  <style>
+    *{margin:0;padding:0;box-sizing:border-box;font-family:Arial,Helvetica,sans-serif}
+    body{background:#111;height:100vh;display:flex;color:#fff}
+
+    /* SIDEBAR */
+    .sidebar{width:30%;background:#1f1f1f;border-right:1px solid #2e2e2e;display:flex;flex-direction:column}
+    .meBox{padding:16px;border-bottom:1px solid #2e2e2e;background:#242424}
+    .meBox input{width:100%;padding:10px;border-radius:6px;border:1px solid #444;background:#111;color:#fff}
+    .meBox button{margin-top:8px;width:100%;padding:8px;border:none;background:#25d366;border-radius:6px;color:#000;font-weight:bold;cursor:pointer}
+
+    .codeBox{padding:16px;border-bottom:1px solid #2e2e2e}
+    .codeBox div{margin-bottom:4px;color:#bbb;font-size:14px}
+    .codeWrap{display:flex;gap:6px}
+    .code{padding:6px 10px;background:#111;border-radius:6px;font-family:monospace;color:#25d366;border:1px solid #333}
+    .codeBox button{padding:6px 10px;border:none;background:#25d366;color:#000;border-radius:6px;cursor:pointer}
+
+    .addBox{padding:16px;border-bottom:1px solid #2e2e2e}
+    .addBox input{width:100%;padding:8px;border-radius:6px;border:1px solid #444;background:#111;color:#fff;margin-bottom:6px}
+    .addBox button{width:100%;padding:8px;background:#25d366;border:none;border-radius:6px;color:#000;font-weight:bold;cursor:pointer}
+
+    .contacts{flex:1;overflow:auto}
+    .contact{padding:14px;border-bottom:1px solid #2e2e2e;cursor:pointer}
+    .contact:hover{background:#2f2f2f}
+    .contact small{color:#aaa}
+
+
+    /* CHAT WINDOW */
+    .chat{flex:1;display:flex;flex-direction:column;background:#0b0b0b}
+    .chatHeader{padding:16px;border-bottom:1px solid #2e2e2e;background:#1a1a1a}
+
+    .messages{flex:1;overflow:auto;padding:20px;display:flex;flex-direction:column;gap:10px}
+    .msg{max-width:60%;padding:10px 14px;border-radius:10px;font-size:15px;line-height:1.3;background:#1f1f1f}
+    .me{align-self:flex-end;background:#25d366;color:#000}
+
+    .chatInput{padding:12px;border-top:1px solid #2e2e2e;display:flex;gap:10px;background:#1a1a1a}
+    .chatInput input{flex:1;padding:10px;border-radius:20px;border:none;background:#111;color:#fff;padding-left:15px}
+    .chatInput button{padding:0 18px;border:none;background:#25d366;color:#000;font-weight:bold;border-radius:20px;cursor:pointer}
+  </style>
+</head>
+<body>
+
+  <div class="sidebar">
+    <div class="meBox">
+      <input id="nick" placeholder="Your nickname" />
+      <button id="saveNick">Save</button>
+    </div>
+
+    <div class="codeBox">
+      <div>Your Code:</div>
+      <div class="codeWrap">
+        <div id="myCode" class="code">---</div>
+        <button id="copyCode">Copy</button>
+      </div>
+    </div>
+
+    <div class="addBox">
+      <input id="addCode" placeholder="Enter friend's code" />
+      <button id="addBtn">Add Contact</button>
+    </div>
+
+    <div class="contacts" id="contactList"></div>
+  </div>
+
+
+  <div class="chat">
+    <div class="chatHeader" id="chatHeader">Select a contact</div>
+    <div class="messages" id="messages"></div>
+    <div class="chatInput">
+      <input id="msgInput" placeholder="Type a message" />
+      <button id="send">Send</button>
+    </div>
+  </div>
+
+
+<script>
+  function uid(){return Math.random().toString(36).substring(2,8).toUpperCase()}
+  function now(){return new Date().toISOString()}
+
+  let profile = JSON.parse(localStorage.getItem('w_profile')||'{}')
+  if(!profile.code){ profile={nick:'',code:uid()}; localStorage.setItem('w_profile',JSON.stringify(profile)) }
+
+  document.getElementById('nick').value = profile.nick
+  document.getElementById('myCode').textContent = profile.code
+
+  document.getElementById('saveNick').onclick = ()=>{
+    profile.nick = document.getElementById('nick').value
+    localStorage.setItem('w_profile',JSON.stringify(profile))
+    alert('Saved')
+    renderContacts()
+  }
+
+  document.getElementById('copyCode').onclick=()=>{
+    navigator.clipboard.writeText(profile.code)
+    alert('Copied')
+  }
+
+  function contactKey(){return 'w_contacts_'+profile.code}
+  function convoKey(a,b){return 'w_convo_'+[a,b].sort().join('_')}
+
+  function getContacts(){return JSON.parse(localStorage.getItem(contactKey())||'[]')}
+  function saveContacts(list){localStorage.setItem(contactKey(),JSON.stringify(list))}
+
+  document.getElementById('addBtn').onclick = ()=>{
+    const code=document.getElementById('addCode').value.trim().toUpperCase()
+    if(!code)return
+    if(code===profile.code){alert('Cannot add yourself');return}
+
+    let list=getContacts()
+    if(list.find(c=>c.code===code)){alert('Already added');return}
+
+    list.push({nick:'User '+code,code})
+    saveContacts(list)
+    renderContacts()
+    document.getElementById('addCode').value=''
+  }
+
+  let active=null
+
+  function renderContacts(){
+    const list=getContacts()
+    const box=document.getElementById('contactList')
+    box.innerHTML=''
+    list.forEach(c=>{
+      const div=document.createElement('div')
+      div.className='contact'
+      div.innerHTML=`<strong>${c.nick}</strong><br><small>${c.code}</small>`
+      div.onclick=()=>{active=c;openChat()}
+      box.appendChild(div)
+    })
+  }
+  renderContacts()
+
+
+  function openChat(){
+    document.getElementById('chatHeader').textContent=active.nick
+    loadMessages()
+  }
+
+  function loadMessages(){
+    const msgs = JSON.parse(localStorage.getItem(convoKey(profile.code,active.code))||'[]')
+    const box=document.getElementById('messages')
+    box.innerHTML=''
+    msgs.forEach(m=>{
+      const d=document.createElement('div')
+      d.className='msg'+(m.from===profile.code?' me':'')
+      d.textContent = m.text
+      box.appendChild(d)
+    })
+    box.scrollTop=box.scrollHeight
+  }
+
+  document.getElementById('send').onclick = sendMessage
+  document.getElementById('msgInput').addEventListener('keydown',e=>{if(e.key==='Enter') sendMessage()})
+
+  function sendMessage(){
+    if(!active){alert('Select someone');return}
+    const text=document.getElementById('msgInput').value.trim()
+    if(!text)return
+
+    const key=convoKey(profile.code,active.code)
+    const arr=JSON.parse(localStorage.getItem(key)||'[]')
+    arr.push({from:profile.code,to:active.code,text,ts:now()})
+    localStorage.setItem(key,JSON.stringify(arr))
+
+    document.getElementById('msgInput').value=''
+    loadMessages()
+  }
+</script>
+
+</body>
+</html>
